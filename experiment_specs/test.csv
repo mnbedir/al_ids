@@ -1,0 +1,5 @@
+experiment_num,results_dir,model_type,models,normal_label,training_data_feed,split_random_seed,dataset_split_ratio,ann_layer_units,ann_layer_activations,ann_layer_dropout_rates,epochs,early_stop_patience,batch_size,training_set,dataset_dir,description
+#,,,,,,,,,,,,,,,,
+#  ANN on IDS 2017,,,,,,,,,,,,,,,,
+1,results/ann_ids17,classifier,ann,BENIGN,preload,42,0.9,"64,","relu,","0.2,",100,20,256,train_set_only,./Datasets/full_datasets/ids2017,ann_ids17
+

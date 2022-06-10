@@ -53,7 +53,7 @@ class ActiveLearner:
 
     def ask_simulated_oracle(self, selected_data_ids):
         selected_data_labels = self.labels[selected_data_ids]
-        return selected_data_labels
+        return selected_data_labels.to_numpy()
 
     def ask_oracle(self, selected_unlabeled_data):
         # ask oracle via gui
@@ -61,7 +61,7 @@ class ActiveLearner:
         return selected_data_labels
 
     def ask(self, selected_unlabeled_data, selected_data_ids):
-        if self.labels is None:
+        if self.labels is not None:
             selected_data_labels = self.ask_simulated_oracle(selected_data_ids)
         else:
             selected_data_labels = self.ask_oracle(selected_unlabeled_data)

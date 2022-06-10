@@ -4,12 +4,19 @@ import numpy as np
 
 
 def select_max_n_sample(scores, n):
-    selected_indices = np.argsort(scores)[:n]
+    size = np.shape(scores)[0]
+    if size < n:
+        n = size
+    selected_indices = np.argsort(scores)[-n:]
     return selected_indices
 
 
 def select_min_n_sample(scores, n):
-    pass
+    size = np.shape(scores)[0]
+    if size < n:
+        n = size
+    selected_indices = np.argsort(scores)[:n]
+    return selected_indices
 
 
 def select_sample_score_greater_than(scores, threshold):

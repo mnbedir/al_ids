@@ -18,37 +18,30 @@ from intrusion_detector import IntrusionDetector
 hdf_key = 'my_key'
 
 
-def load_configurations():
-    exp_config = {}
-    exp_config['description'] = "ann_ids_2017"
-    exp_config['dataset_dir'] = "./Datasets/small_datasets/ids2017"
-    exp_config['results_dir'] = "results/ann_ids17"
-    exp_config['initial_split_ratio'] = 0.1
+def load_params():
+    exp_params = {}
+    exp_params['description'] = "ann_ids_2017"
+    exp_params['dataset_dir'] = "./Datasets/small_datasets/ids2017"
+    exp_params['results_dir'] = "results/ann_ids17"
+    exp_params['initial_split_ratio'] = 0.1
 
-    classifier_config = {}
-    classifier_config['input_nodes'] = 78
-    classifier_config['output_nodes'] = 3
-    classifier_config['ann_layer_units'] = [64]
-    classifier_config['ann_layer_activations'] = ['relu']
-    classifier_config['ann_layer_dropout_rates'] = [0.2]
-    classifier_config['batch_size'] = 256
-    classifier_config['epochs'] = 5
-    classifier_config['early_stop_patience'] = 20
-    classifier_config['tensorboard_log_dir'] = "results/ann_ids17"
-    classifier_config['class_weights'] = 0
+    exp_params['id_batch_size'] = 100
+    exp_params['confidence_th'] = 0.8
+    exp_params['al_selection_param'] = 10
 
-    al_config = {}
-    al_config['query_strategy'] = 'uncertainty'
-    al_config['selection_strategy'] = 'max_n'
-    al_config['selection_param'] = 10
+    # Classifier configuration
+    exp_params['input_nodes'] = 78
+    exp_params['output_nodes'] = 3
+    exp_params['ann_layer_units'] = [64]
+    exp_params['ann_layer_activations'] = ['relu']
+    exp_params['ann_layer_dropout_rates'] = [0.2]
+    exp_params['batch_size'] = 256
+    exp_params['epochs'] = 5
+    exp_params['early_stop_patience'] = 20
+    exp_params['tensorboard_log_dir'] = "results/ann_ids17"
+    exp_params['class_weights'] = 0
 
-    ids_config = {}
-    ids_config['al_batch_size'] = 100
-    ids_config['classifier_confidence_th'] = 0.8
-    ids_config['data_count_th'] = 50
-    ids_config['al_selection_param'] = 10
-
-    return exp_config, classifier_config, al_config, ids_config
+    return exp_params
 
 
 def load_datasets(data_dir):
@@ -94,7 +87,7 @@ def split_initial_data(datasets_orig, split_ratio):
     X_train_r = X_train.tail(remaining_element_size)
     y_train_r = y_train.tail(remaining_element_size)
 
-    selected_classes = ['BENIGN', 'PortScan', 'DDoS']
+    selected_classes = ['BENIGN','PortScan', 'DDoS']
     flt = y_train_i.isin(selected_classes)
     X_train_i_s = X_train_i.loc[flt]
     y_train_i_s = y_train_i.loc[flt]
@@ -105,12 +98,32 @@ def split_initial_data(datasets_orig, split_ratio):
     return initial_datasets_orig, remaining_datasets_orig
 
 
+def convert_to_binary(y):
+    if y != 'BENIGN':
+        y = 'ATTACK'
+    return y
+
+def prepare_anomaly_detector_dataset(initial_datasets_orig):
+    X_train_i, y_train_i = initial_datasets_orig
+    # convert labels to binary
+    y_train_i_binary = y_train_i.apply(convert_to_binary)
+    return X_train_i, y_train_i_binary
+
+
+def prepare_classifier_dataset(initial_datasets_orig):
+    X_train_i, y_train_i = initial_datasets_orig
+    flt = y_train_i != 'BENIGN'
+    X_train_i_attack_only = X_train_i.loc[flt]
+    y_train_i_attack_only = y_train_i.loc[flt]
+    return X_train_i_attack_only, y_train_i_attack_only
+
+
 def run_intrusion_detector(network_flow_data, true_labels, intrusion_detector):
     results = np.array([])
     for index, current_data in network_flow_data.iterrows():
         predicted_label = intrusion_detector.predict(current_data.values.reshape(1, 78), index)
-        # true_label = true_labels[index]
-        # print("predicted label = "+predicted_label+", true label = "+true_label)
+        true_label = true_labels[index]
+        print("predicted label = "+predicted_label+", true label = "+true_label)
         results = np.append(results, [predicted_label])
     return results
 
@@ -119,27 +132,47 @@ def evaluate_results(results, true_labels):
     pass
 
 
-def run_experiment(exp_config, classifier_config, al_config, ids_config):
+def run_anomaly_detector(network_flow_data, anomaly_detector):
+    results = np.array([])
+    for index, current_data in network_flow_data.iterrows():
+        predicted_label = anomaly_detector.predict(current_data.values.reshape(1, 78))
+        np.append(results, [predicted_label])
+    return results
+
+
+def run_experiment(exp_params):
     # load dataset
-    datasets_orig = load_datasets(exp_config['dataset_dir'])
+    datasets_orig = load_datasets(exp_params['dataset_dir'])
 
     # prepare dataset
-    initial_datasets_orig, remaining_datasets_orig = split_initial_data(datasets_orig, exp_config['initial_split_ratio'])
-    X_train, y_train = remaining_datasets_orig
-    X_train_c, y_train_c = initial_datasets_orig
+    initial_datasets_orig, remaining_datasets_orig = split_initial_data(datasets_orig,
+                                                                        exp_params['initial_split_ratio'])
+    X_train, y_train = prepare_classifier_dataset(remaining_datasets_orig)
+    X_train_ad, y_train_ad = prepare_anomaly_detector_dataset(initial_datasets_orig)
+    X_train_c, y_train_c = prepare_classifier_dataset(initial_datasets_orig)
     y_train_c_enc, label_encoder = utility.encode_data(y_train_c)
 
-    # create classifier and pre-train them
-    classifier = AttackClassifier(classifier_config)
+    # create anomaly detector and classifier and pre-train them
+    anomaly_detector = AnomalyDetector()
+    anomaly_detector.fit(X_train_ad.to_numpy(), y_train_ad.to_numpy())
+
+    # results = run_anomaly_detector(X_train, anomaly_detector)
+
+    classifier = AttackClassifier(exp_params)
     classifier.fit(X_train_c, y_train_c_enc)
 
     # create active learner
+    query_strategy = 'uncertainty'
+    selection_strategy = 'max_n'
+    selection_param = exp_params['al_selection_param']
     labels = y_train
-    active_learner = ActiveLearner(al_config['query_strategy'], al_config['selection_strategy'], al_config['selection_param'], labels)
+    active_learner = ActiveLearner(query_strategy, selection_strategy, selection_param, labels)
 
     # create intrusion detector
     initial_train_data = X_train_c, y_train_c, label_encoder
-    intrusion_detector = IntrusionDetector(active_learner, classifier, initial_train_data, ids_config)
+
+    intrusion_detector = IntrusionDetector(anomaly_detector, classifier, active_learner, initial_train_data,
+                                           exp_params['id_batch_size'], exp_params['confidence_th'])
 
     # run ids and improve ids with active learner
     results = run_intrusion_detector(X_train, y_train, intrusion_detector)
@@ -149,8 +182,8 @@ def run_experiment(exp_config, classifier_config, al_config, ids_config):
 def main():
     # Disable GPU as it appears to be slower than CPU (to enable GPU, comment out this line)
     # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-    exp_config, classifier_config, al_config, ids_config = load_configurations()
-    run_experiment(exp_config, classifier_config, al_config, ids_config)
+    exp_params = load_params()
+    run_experiment(exp_params)
 
 
 if __name__ == "__main__":

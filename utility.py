@@ -191,6 +191,13 @@ def encode_labels(y, encoder=None):
     return (encoder, dummy_y)
 
 
+def encode_data(y_train):
+    # One-hot encode class labels (needed as output layer has multiple nodes)
+    label_encoder, unused = encode_labels(y_train, encoder=None)
+    unused, y_train_enc = encode_labels(y_train, encoder=label_encoder)
+    return y_train_enc, label_encoder
+
+
 def scale_training_set(X_train, scale_type, columns):
     # X = X_train[columns]
     X = X_train.iloc[:, columns]

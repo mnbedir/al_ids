@@ -28,7 +28,14 @@ class AttackClassifier:
 
     def reinit(self, new_output_node_count):
         self.output_nodes = new_output_node_count
-        self.create_ann()
+        # self.create_ann()
+
+        self.ann.pop()
+        self.ann.add(Dense(self.output_nodes, activation='softmax',
+                           kernel_initializer='glorot_uniform', bias_initializer='zeros'))
+
+        self.ann.compile(optimizer='adam', loss='binary_crossentropy')
+
 
     def create_ann(self):
         self.ann = Sequential()
@@ -124,10 +131,13 @@ class AttackClassifier:
         # Class weights to according to imbalance
 
         class_weights = None
-        # if self.params['class_weights'] != 0:
-        #     logging.info("Computing class weights to according to imbalance")
-        #     y_ints = [y.argmax() for y in y_train]
-        #     class_weights = class_weight.compute_class_weight('balanced', np.unique(y_ints), y_ints)
+        d_class_weights = None
+        if self.params['class_weights'] != 0:
+            logging.info("Computing class weights to according to imbalance")
+        y_ints = [y.argmax() for y in y_train]
+        class_weights = class_weight.compute_class_weight(class_weight='balanced', classes=np.unique(y_ints), y=y_ints)
+        d_class_weights = dict(enumerate(class_weights))
+
         #     logging.info("Class weights below.\n{}".format(class_weights))
 
         # --------------------------------
@@ -144,7 +154,7 @@ class AttackClassifier:
         # callbacks = callbacks,
         history = self.ann.fit(X_train, y_train, epochs=epochs, batch_size=batch_size,
                                validation_data=validation_data,
-                               class_weight=class_weights, verbose=1)
+                               class_weight=d_class_weights, verbose=1)
 
         # history.history['val_f1'] = metrics_cb.val_f1s
 
@@ -152,11 +162,10 @@ class AttackClassifier:
         # Evaluate loss of final (best-weights-restored) models
         # These values can be different from the values seen during training (due to batch norm and dropout)
 
-        train_loss = self.ann.evaluate(X_train, y_train, verbose=0)
+        # train_loss = self.ann.evaluate(X_train, y_train, verbose=0)
         # val_loss = -1
         # if X_valid is not None and y_valid is not None:
         #     val_loss = self.ann.evaluate(X_valid, y_valid, verbose=0)
-        print("train lost = "+str(train_loss))
         # logging.info('Last epoch loss evaluation: train_loss = {:.6f}, val_loss = {:.6f}'.format(train_loss, val_loss))
 
         return history

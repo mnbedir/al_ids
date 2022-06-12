@@ -1,4 +1,5 @@
 from fontTools.misc.classifyTools import Classifier
+from sklearn.metrics import classification_report, accuracy_score, precision_score, f1_score
 
 import utility
 import models.ann
@@ -6,24 +7,47 @@ import models.ann
 import sys, os, time, logging, csv, glob
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 import matplotlib
 
 # Common params
 from active_learners.active_learner import ActiveLearner
-from anomaly_detector import AnomalyDetector
 from attack_classifier import AttackClassifier
 from intrusion_detector import IntrusionDetector
 
 hdf_key = 'my_key'
+data_info_table = pd.DataFrame()
+evaluation_info_table = pd.DataFrame()
+
+
+def setup_logging(output_dir):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        logging.info('Created directory: {}'.format(output_dir))
+
+    # Setup logging
+    log_filename = output_dir + '/' + 'run_log.log'
+
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    logging.basicConfig(
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.FileHandler(log_filename, 'w+'),
+                  logging.StreamHandler()],
+        level=logging.INFO
+    )
+    logging.info('Initialized logging. log_filename = {}'.format(log_filename))
 
 
 def load_configurations():
+    # TODO: save config into file
     exp_config = {}
     exp_config['description'] = "ann_ids_2017"
     exp_config['dataset_dir'] = "./Datasets/small_datasets/ids2017"
-    exp_config['results_dir'] = "results/ann_ids17"
-    exp_config['initial_split_ratio'] = 0.1
+    exp_config['results_dir'] = "results"
+    exp_config['initial_split_ratio'] = 0.05
 
     classifier_config = {}
     classifier_config['input_nodes'] = 78
@@ -40,13 +64,12 @@ def load_configurations():
     al_config = {}
     al_config['query_strategy'] = 'uncertainty'
     al_config['selection_strategy'] = 'max_n'
-    al_config['selection_param'] = 10
+    al_config['selection_param'] = 50
 
     ids_config = {}
-    ids_config['al_batch_size'] = 100
+    ids_config['al_batch_size'] = 500
     ids_config['classifier_confidence_th'] = 0.8
-    ids_config['data_count_th'] = 50
-    ids_config['al_selection_param'] = 10
+    ids_config['data_count_th'] = 10
 
     return exp_config, classifier_config, al_config, ids_config
 
@@ -105,50 +128,119 @@ def split_initial_data(datasets_orig, split_ratio):
     return initial_datasets_orig, remaining_datasets_orig
 
 
-def run_intrusion_detector(network_flow_data, true_labels, intrusion_detector):
+def evaluate_intrusion_detector(intrusion_detector, X_test, y_test):
+    classifier = intrusion_detector.get_attack_classifier()
+    label_encoder = intrusion_detector.get_label_encoder()
+
+    y_test_pred_enc = classifier.predict_classes(X_test)
+    y_test_pred = label_encoder.inverse_transform(y_test_pred_enc.flatten())
+
+    accuracy = accuracy_score(y_test, y_test_pred)
+    f1 = f1_score(y_test, y_test_pred, average='weighted')
+
+    info = {'accuracy': accuracy, 'f1_score': f1}
+    return info
+
+
+def report_info(data_info, evaluation_info):
+    global data_info_table
+    global evaluation_info_table
+
+    data_pool_info, labeled_data_info, train_data_info = data_info
+    data_pool_info_df = pd.DataFrame(data_pool_info, index=[0])
+    labeled_data_info_df = pd.DataFrame(labeled_data_info, index=[0])
+    train_data_info_df = pd.DataFrame(train_data_info, index=[0])
+
+    data_info_table = pd.concat([data_info_table, data_pool_info_df], ignore_index=True)
+    data_info_table = pd.concat([data_info_table, labeled_data_info_df], ignore_index=True)
+    data_info_table = pd.concat([data_info_table, train_data_info_df], ignore_index=True)
+
+    evaluation_info_df = pd.DataFrame(evaluation_info, index=[0])
+    evaluation_info_table = pd.concat([evaluation_info_table, evaluation_info_df], ignore_index=True)
+
+
+def write_report(result_dir):
+    global data_info_table
+    global evaluation_info_table
+
+    data_info_table.to_csv(result_dir + '/data_info_table.csv', sep='\t')
+    evaluation_info_table.to_csv(result_dir + '/evaluation_info_table.csv', sep='\t')
+
+
+def plot_evaluation_graph(result_dir):
+    global evaluation_info_table
+    indices = evaluation_info_table.index.values.tolist()
+
+    plt.figure(figsize=(5, 2.7), layout='constrained')
+    plt.plot(indices, evaluation_info_table['f1_score'], label='f1_score')
+    plt.plot(indices, evaluation_info_table['accuracy'], label='accuracy')
+    plt.xlabel('x label')
+    plt.ylabel('y label')
+    plt.title("Simple Plot")
+    plt.legend()
+
+    plt.savefig(result_dir+'/evaluation_graph.png')
+    plt.show()
+
+
+def run_intrusion_detector(X_train, y_train, X_test, y_test, intrusion_detector):
     results = np.array([])
-    for index, current_data in network_flow_data.iterrows():
-        predicted_label = intrusion_detector.predict(current_data.values.reshape(1, 78), index)
-        # true_label = true_labels[index]
-        # print("predicted label = "+predicted_label+", true label = "+true_label)
-        results = np.append(results, [predicted_label])
-    return results
+    counter = 0
 
+    # initial_evaluation_info = evaluate_intrusion_detector(intrusion_detector, X_test, y_test)
+    # initial_data_info = None
+    # report_info(initial_data_info, initial_evaluation_info)
 
-def evaluate_results(results, true_labels):
-    pass
+    for index, current_data in X_train.iterrows():
+        predicted_label, class_prob, data_info = intrusion_detector.predict(current_data.values.reshape(1, 78), index)
+        counter += 1
+        # true_label = y_train[index]
+        # if predicted_label == true_label:
+        #     logging.info(str(counter) + " predicted label = " + predicted_label + "(" + str(class_prob) + ")")
+        # else:
+        #     logging.info(str(counter) + " predicted label = " + predicted_label + "(" + str(class_prob) + "), but true label = " + true_label)
+
+        if data_info is not None:
+            evaluation_info = evaluate_intrusion_detector(intrusion_detector, X_test, y_test)
+            report_info(data_info, evaluation_info)
+
+        if counter == 5005:
+            break
 
 
 def run_experiment(exp_config, classifier_config, al_config, ids_config):
     # load dataset
     datasets_orig = load_datasets(exp_config['dataset_dir'])
+    (X_train, y_train), (X_test, y_test) = datasets_orig
 
     # prepare dataset
     initial_datasets_orig, remaining_datasets_orig = split_initial_data(datasets_orig, exp_config['initial_split_ratio'])
     X_train, y_train = remaining_datasets_orig
-    X_train_c, y_train_c = initial_datasets_orig
-    y_train_c_enc, label_encoder = utility.encode_data(y_train_c)
+    X_pre_train, y_pre_train = initial_datasets_orig
+    y_pre_train_enc, label_encoder = utility.encode_data(y_pre_train)
 
     # create classifier and pre-train them
     classifier = AttackClassifier(classifier_config)
-    classifier.fit(X_train_c, y_train_c_enc)
+    classifier.fit(X_pre_train, y_pre_train_enc)
 
     # create active learner
     labels = y_train
     active_learner = ActiveLearner(al_config['query_strategy'], al_config['selection_strategy'], al_config['selection_param'], labels)
 
     # create intrusion detector
-    initial_train_data = X_train_c, y_train_c, label_encoder
+    initial_train_data = X_pre_train, y_pre_train, label_encoder
     intrusion_detector = IntrusionDetector(active_learner, classifier, initial_train_data, ids_config)
 
     # run ids and improve ids with active learner
-    results = run_intrusion_detector(X_train, y_train, intrusion_detector)
-    evaluate_results(results, y_train)
+    run_intrusion_detector(X_train, y_train, X_test, y_test, intrusion_detector)
+
+    # write report to csv
+    write_report(exp_config['results_dir'])
+    plot_evaluation_graph(exp_config['results_dir'])
 
 
 def main():
-    # Disable GPU as it appears to be slower than CPU (to enable GPU, comment out this line)
-    # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
     exp_config, classifier_config, al_config, ids_config = load_configurations()
     run_experiment(exp_config, classifier_config, al_config, ids_config)
 

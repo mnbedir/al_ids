@@ -10,6 +10,7 @@ class ActiveLearner:
         self.selection_strategy = selection_strategy
         self.selection_param = selection_param
         self.labels = labels
+        self.classes = np.unique(self.labels.values)
 
     def get_new_labeled_data(self, classifier, train_data_x, train_data_y, unlabeled_data_pool, unlabeled_data_ids):
         scores = self.query(classifier, train_data_x, train_data_y, unlabeled_data_pool)
@@ -66,6 +67,9 @@ class ActiveLearner:
         else:
             selected_data_labels = self.ask_oracle(selected_unlabeled_data)
         return selected_data_labels
+
+    def get_classes(self):
+        return self.classes
 
 
 

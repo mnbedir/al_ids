@@ -34,8 +34,7 @@ class AttackClassifier:
         self.ann.add(Dense(self.output_nodes, activation='softmax',
                            kernel_initializer='glorot_uniform', bias_initializer='zeros'))
 
-        self.ann.compile(optimizer='adam', loss='binary_crossentropy')
-
+        self.ann.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
     def create_ann(self):
         self.ann = Sequential()
@@ -56,7 +55,7 @@ class AttackClassifier:
         self.ann.add(Dense(self.output_nodes, activation='softmax',
                            kernel_initializer='glorot_uniform', bias_initializer='zeros'))
 
-        self.ann.compile(optimizer='adam', loss='binary_crossentropy')
+        self.ann.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
         #logger = logging.getLogger(__name__)
         #self.ann.summary(print_fn=logger.info)
@@ -162,7 +161,7 @@ class AttackClassifier:
         # Evaluate loss of final (best-weights-restored) models
         # These values can be different from the values seen during training (due to batch norm and dropout)
 
-        # train_loss = self.ann.evaluate(X_train, y_train, verbose=0)
+        train_loss = self.ann.evaluate(X_train, y_train, verbose=0)
         # val_loss = -1
         # if X_valid is not None and y_valid is not None:
         #     val_loss = self.ann.evaluate(X_valid, y_valid, verbose=0)

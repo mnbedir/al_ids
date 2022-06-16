@@ -1,25 +1,25 @@
-from fontTools.misc.classifyTools import Classifier
+
 from sklearn.metrics import classification_report, accuracy_score, precision_score, f1_score
 
 import utility
-import models.ann
-
 import sys, os, time, logging, csv, glob
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-import matplotlib
-
-# Common params
 from active_learners.active_learner import ActiveLearner
 from attack_classifier import AttackClassifier
 from intrusion_detector import IntrusionDetector
 
 hdf_key = 'my_key'
-data_info_table = pd.DataFrame()
-evaluation_info_table = pd.DataFrame()
 
+input_and_pool_data_table = pd.DataFrame()
+pool_and_selected_data_table = pd.DataFrame()
+train_data_table = pd.DataFrame()
+new_class_table = pd.DataFrame()
+general_eval_info_table = pd.DataFrame()
+detailed_eval_info_table = pd.DataFrame()
+train_counter = 0
 
 def setup_logging(output_dir):
     if not os.path.exists(output_dir):
@@ -55,8 +55,8 @@ def load_configurations():
     classifier_config['ann_layer_units'] = [64]
     classifier_config['ann_layer_activations'] = ['relu']
     classifier_config['ann_layer_dropout_rates'] = [0.2]
-    classifier_config['batch_size'] = 256
-    classifier_config['epochs'] = 5
+    classifier_config['batch_size'] = 32
+    classifier_config['epochs'] = 10
     classifier_config['early_stop_patience'] = 20
     classifier_config['tensorboard_log_dir'] = "results/ann_ids17"
     classifier_config['class_weights'] = 0
@@ -64,18 +64,18 @@ def load_configurations():
     al_config = {}
     al_config['query_strategy'] = 'uncertainty'
     al_config['selection_strategy'] = 'max_n'
-    al_config['selection_param'] = 50
+    al_config['selection_param'] = 10
 
     ids_config = {}
-    ids_config['al_batch_size'] = 500
-    ids_config['classifier_confidence_th'] = 0.8
-    ids_config['data_count_th'] = 10
+    ids_config['pool_size_th'] = 50
+    ids_config['classifier_confidence_th'] = 0.9
+    ids_config['new_class_min_count_th'] = 3
+    ids_config['retrain_only_new_data'] = False
 
     return exp_config, classifier_config, al_config, ids_config
 
 
 def load_datasets(data_dir):
-    # Lists of train, val, test files (X and y)
     X_train_files = glob.glob(data_dir + '/' + 'X_train*')
     y_train_files = glob.glob(data_dir + '/' + 'y_train*')
 
@@ -136,76 +136,186 @@ def evaluate_intrusion_detector(intrusion_detector, X_test, y_test):
     y_test_pred = label_encoder.inverse_transform(y_test_pred_enc.flatten())
 
     accuracy = accuracy_score(y_test, y_test_pred)
-    f1 = f1_score(y_test, y_test_pred, average='weighted')
+    f1_weighted = f1_score(y_test, y_test_pred, average='weighted')
+    report = classification_report(y_test, y_test_pred, output_dict=True, zero_division=0)
+    report.pop('accuracy')
+    report.pop('macro avg')
+    report.pop('weighted avg')
 
-    info = {'accuracy': accuracy, 'f1_score': f1}
-    return info
+    global train_counter
+    name = "train-" + str(train_counter)
+    general_info = {'name': name, 'accuracy': accuracy, 'f1_score': f1_weighted}
+    detailed_info = {'name': name}
+
+    for class_name in report:
+        class_report = report[class_name]
+        detailed_info[class_name] = class_report['f1-score']
+
+    evaluation_info = (general_info, detailed_info)
+    train_counter += 1
+    return evaluation_info
+
+
+def report_initial_info(train_data_info, evaluation_info):
+    global train_data_table
+    global new_class_table
+    global general_eval_info_table
+    global detailed_eval_info_table
+
+    new_class_info = {'name': "train-0", 'new_class': 0}
+
+    general_info, detailed_info = evaluation_info
+
+    train_data_info_df = pd.DataFrame(train_data_info, index=[0])
+    new_class_table_df = pd.DataFrame(new_class_info, index=[0])
+    general_eval_info_df = pd.DataFrame(general_info, index=[0])
+    detailed_eval_info_df = pd.DataFrame(detailed_info, index=[0])
+
+    # table 3: What is new train data for each retain step?
+    train_data_table = pd.concat([train_data_table, train_data_info_df], ignore_index=True)
+
+    # table 4: Is there new class in train data?
+    new_class_table = pd.concat([new_class_table, new_class_table_df], ignore_index=True)
+
+    # table 5: What is the performance of retrained classifier on test data?
+    general_eval_info_table = pd.concat([general_eval_info_table, general_eval_info_df], ignore_index=True)
+
+    # table 6: What is the performance of retrained classifier on test data for each class?
+    detailed_eval_info_table = pd.concat([detailed_eval_info_table, detailed_eval_info_df], ignore_index=True)
 
 
 def report_info(data_info, evaluation_info):
-    global data_info_table
-    global evaluation_info_table
+    global input_and_pool_data_table
+    global pool_and_selected_data_table
+    global train_data_table
+    global new_class_table
+    global general_eval_info_table
+    global detailed_eval_info_table
 
-    data_pool_info, labeled_data_info, train_data_info = data_info
+    input_data_info, data_pool_info, labeled_data_info, train_data_info, new_class_info = data_info
+    general_info, detailed_info = evaluation_info
+
+    input_data_info_df = pd.DataFrame(input_data_info, index=[0])
     data_pool_info_df = pd.DataFrame(data_pool_info, index=[0])
     labeled_data_info_df = pd.DataFrame(labeled_data_info, index=[0])
     train_data_info_df = pd.DataFrame(train_data_info, index=[0])
+    new_class_table_df = pd.DataFrame(new_class_info, index=[0])
 
-    data_info_table = pd.concat([data_info_table, data_pool_info_df], ignore_index=True)
-    data_info_table = pd.concat([data_info_table, labeled_data_info_df], ignore_index=True)
-    data_info_table = pd.concat([data_info_table, train_data_info_df], ignore_index=True)
+    general_eval_info_df = pd.DataFrame(general_info, index=[0])
+    detailed_eval_info_df = pd.DataFrame(detailed_info, index=[0])
 
-    evaluation_info_df = pd.DataFrame(evaluation_info, index=[0])
-    evaluation_info_table = pd.concat([evaluation_info_table, evaluation_info_df], ignore_index=True)
+    logging.info("Evaluation on test data: \n"+str(general_eval_info_df))
+
+    # table 1: Which classes confidence is low?
+    input_and_pool_data_table = pd.concat([input_and_pool_data_table, input_data_info_df], ignore_index=True)
+    input_and_pool_data_table = pd.concat([input_and_pool_data_table, data_pool_info_df], ignore_index=True)
+
+    # table 2: Which classes selected by active learner?
+    pool_and_selected_data_table = pd.concat([pool_and_selected_data_table, data_pool_info_df], ignore_index=True)
+    pool_and_selected_data_table = pd.concat([pool_and_selected_data_table, labeled_data_info_df], ignore_index=True)
+
+    # table 3: What is new train data for each retain step?
+    train_data_table = pd.concat([train_data_table, train_data_info_df], ignore_index=True)
+
+    # table 4: Is there new class in train data?
+    new_class_table = pd.concat([new_class_table, new_class_table_df], ignore_index=True)
+
+    # table 5: What is the performance of retrained classifier on test data?
+    general_eval_info_table = pd.concat([general_eval_info_table, general_eval_info_df], ignore_index=True)
+
+    # table 6: What is the performance of retrained classifier on test data for each class?
+    detailed_eval_info_table = pd.concat([detailed_eval_info_table, detailed_eval_info_df], ignore_index=True)
 
 
 def write_report(result_dir):
-    global data_info_table
-    global evaluation_info_table
+    global input_and_pool_data_table
+    global pool_and_selected_data_table
+    global train_data_table
+    global new_class_table
+    global general_eval_info_table
+    global detailed_eval_info_table
 
-    data_info_table.to_csv(result_dir + '/data_info_table.csv', sep='\t')
-    evaluation_info_table.to_csv(result_dir + '/evaluation_info_table.csv', sep='\t')
+    input_and_pool_data_table.set_index('name', inplace=True)
+    pool_and_selected_data_table.set_index('name', inplace=True)
+    train_data_table.set_index('name', inplace=True)
+    new_class_table.set_index('name', inplace=True)
+    general_eval_info_table.set_index('name', inplace=True)
+    detailed_eval_info_table.set_index('name', inplace=True)
+
+    input_and_pool_data_table.to_csv(result_dir + '/input_and_pool_data_table.csv', sep='\t')
+    pool_and_selected_data_table.to_csv(result_dir + '/pool_and_selected_data_table.csv', sep='\t')
+    train_data_table.to_csv(result_dir + '/train_data_table.csv', sep='\t')
+    new_class_table.to_csv(result_dir + '/new_class_table.csv', sep='\t')
+    general_eval_info_table.to_csv(result_dir + '/general_eval_info_table.csv', sep='\t')
+    detailed_eval_info_table.to_csv(result_dir + '/detailed_eval_info_table.csv', sep='\t')
 
 
 def plot_evaluation_graph(result_dir):
-    global evaluation_info_table
-    indices = evaluation_info_table.index.values.tolist()
+    global new_class_table
+    global general_eval_info_table
+    indices = general_eval_info_table.index.values.tolist()
 
     plt.figure(figsize=(5, 2.7), layout='constrained')
-    plt.plot(indices, evaluation_info_table['f1_score'], label='f1_score')
-    plt.plot(indices, evaluation_info_table['accuracy'], label='accuracy')
-    plt.xlabel('x label')
-    plt.ylabel('y label')
-    plt.title("Simple Plot")
+    plt.plot(indices, general_eval_info_table['f1_score'], label='f1_score')
+    plt.plot(indices, general_eval_info_table['accuracy'], label='accuracy')
+    plt.scatter(indices, new_class_table['new_class'])
+    plt.xticks(rotation=90)
+    plt.title("Evaluation Results")
     plt.legend()
 
     plt.savefig(result_dir+'/evaluation_graph.png')
-    plt.show()
+    # plt.show()
 
 
 def run_intrusion_detector(X_train, y_train, X_test, y_test, intrusion_detector):
-    results = np.array([])
     counter = 0
-
-    # initial_evaluation_info = evaluate_intrusion_detector(intrusion_detector, X_test, y_test)
-    # initial_data_info = None
-    # report_info(initial_data_info, initial_evaluation_info)
+    initial_train_data_info = intrusion_detector.extract_train_data_info()
+    initial_evaluation_info = evaluate_intrusion_detector(intrusion_detector, X_test, y_test)
+    report_initial_info(initial_train_data_info, initial_evaluation_info)
 
     for index, current_data in X_train.iterrows():
         predicted_label, class_prob, data_info = intrusion_detector.predict(current_data.values.reshape(1, 78), index)
         counter += 1
-        # true_label = y_train[index]
-        # if predicted_label == true_label:
-        #     logging.info(str(counter) + " predicted label = " + predicted_label + "(" + str(class_prob) + ")")
-        # else:
-        #     logging.info(str(counter) + " predicted label = " + predicted_label + "(" + str(class_prob) + "), but true label = " + true_label)
 
         if data_info is not None:
             evaluation_info = evaluate_intrusion_detector(intrusion_detector, X_test, y_test)
             report_info(data_info, evaluation_info)
 
-        if counter == 5005:
+        if counter == 1005:
             break
+
+
+def prepare_attack_dataset(datasets_orig):
+    X_train_i, y_train_i = datasets_orig
+    flt = y_train_i != 'BENIGN'
+    X_train_i_attack_only = X_train_i.loc[flt]
+    y_train_i_attack_only = y_train_i.loc[flt]
+    return X_train_i_attack_only, y_train_i_attack_only
+
+
+def extract_and_save_data_info(result_dir, datasets_orig):
+    (X_train, y_train), (X_test, y_test) = datasets_orig
+
+    classes, counts = np.unique(y_train, return_counts=True)
+    train_info_table = get_info_table(classes, counts, "train data")
+    train_df = pd.DataFrame(train_info_table, index=[0])
+    train_df.set_index('name', inplace=True)
+
+    classes, counts = np.unique(y_test, return_counts=True)
+    test_info_table = get_info_table(classes, counts, "test data")
+    test_df = pd.DataFrame(test_info_table, index=[0])
+    test_df.set_index('name', inplace=True)
+
+    dataset_info_table = pd.concat([train_df, test_df])
+    dataset_info_table.to_csv(result_dir + '/dataset_info_table.csv', sep='\t')
+
+
+def get_info_table(classes, counts, name):
+    info = {'name': name}
+    for i in range(classes.size):
+        info[classes[i]] = counts[i]
+    info['total'] = np.sum(counts)
+    return info
 
 
 def run_experiment(exp_config, classifier_config, al_config, ids_config):
@@ -213,9 +323,11 @@ def run_experiment(exp_config, classifier_config, al_config, ids_config):
     datasets_orig = load_datasets(exp_config['dataset_dir'])
     (X_train, y_train), (X_test, y_test) = datasets_orig
 
+    # extract_and_save_data_info(exp_config['results_dir'], datasets_orig)
+
     # prepare dataset
     initial_datasets_orig, remaining_datasets_orig = split_initial_data(datasets_orig, exp_config['initial_split_ratio'])
-    X_train, y_train = remaining_datasets_orig
+    X_rem_train, y_rem_train = prepare_attack_dataset(remaining_datasets_orig)
     X_pre_train, y_pre_train = initial_datasets_orig
     y_pre_train_enc, label_encoder = utility.encode_data(y_pre_train)
 
@@ -224,7 +336,7 @@ def run_experiment(exp_config, classifier_config, al_config, ids_config):
     classifier.fit(X_pre_train, y_pre_train_enc)
 
     # create active learner
-    labels = y_train
+    labels = y_rem_train
     active_learner = ActiveLearner(al_config['query_strategy'], al_config['selection_strategy'], al_config['selection_param'], labels)
 
     # create intrusion detector
@@ -232,7 +344,7 @@ def run_experiment(exp_config, classifier_config, al_config, ids_config):
     intrusion_detector = IntrusionDetector(active_learner, classifier, initial_train_data, ids_config)
 
     # run ids and improve ids with active learner
-    run_intrusion_detector(X_train, y_train, X_test, y_test, intrusion_detector)
+    run_intrusion_detector(X_rem_train, y_rem_train, X_test, y_test, intrusion_detector)
 
     # write report to csv
     write_report(exp_config['results_dir'])

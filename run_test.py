@@ -3,6 +3,7 @@ from sklearn.metrics import classification_report, accuracy_score, precision_sco
 
 import utility
 import sys, os, time, logging, csv, glob
+import shutil
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,58 +22,20 @@ general_eval_info_table = pd.DataFrame()
 detailed_eval_info_table = pd.DataFrame()
 train_counter = 0
 
-def setup_logging(output_dir):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        logging.info('Created directory: {}'.format(output_dir))
 
-    # Setup logging
-    log_filename = output_dir + '/' + 'run_log.log'
+def load_configurations(config_file_path):
+    txt_content = ""
+    with open(config_file_path, 'r') as f:
+        for line in f:
+            txt_content += line
 
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-
-    logging.basicConfig(
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[logging.FileHandler(log_filename, 'w+'),
-                  logging.StreamHandler()],
-        level=logging.INFO
-    )
-    logging.info('Initialized logging. log_filename = {}'.format(log_filename))
+    config = eval(txt_content)
+    return config['exp_config'], config['classifier_config'], config['al_config'], config['ids_config']
 
 
-def load_configurations():
-    # TODO: save config into file
-    exp_config = {}
-    exp_config['description'] = "ann_ids_2017"
-    exp_config['dataset_dir'] = "./Datasets/small_datasets/ids2017"
-    exp_config['results_dir'] = "results"
-    exp_config['initial_split_ratio'] = 0.05
-
-    classifier_config = {}
-    classifier_config['input_nodes'] = 78
-    classifier_config['output_nodes'] = 3
-    classifier_config['ann_layer_units'] = [64]
-    classifier_config['ann_layer_activations'] = ['relu']
-    classifier_config['ann_layer_dropout_rates'] = [0.2]
-    classifier_config['batch_size'] = 32
-    classifier_config['epochs'] = 10
-    classifier_config['early_stop_patience'] = 20
-    classifier_config['tensorboard_log_dir'] = "results/ann_ids17"
-    classifier_config['class_weights'] = 0
-
-    al_config = {}
-    al_config['query_strategy'] = 'uncertainty'
-    al_config['selection_strategy'] = 'max_n'
-    al_config['selection_param'] = 10
-
-    ids_config = {}
-    ids_config['pool_size_th'] = 50
-    ids_config['classifier_confidence_th'] = 0.9
-    ids_config['new_class_min_count_th'] = 3
-    ids_config['retrain_only_new_data'] = False
-
-    return exp_config, classifier_config, al_config, ids_config
+def create_result_dir(results_dir):
+    os.makedirs(results_dir, exist_ok=True)
+    logging.info('Created result directory: {}'.format(results_dir))
 
 
 def load_datasets(data_dir):
@@ -281,7 +244,7 @@ def run_intrusion_detector(X_train, y_train, X_test, y_test, intrusion_detector)
             evaluation_info = evaluate_intrusion_detector(intrusion_detector, X_test, y_test)
             report_info(data_info, evaluation_info)
 
-        if counter == 1005:
+        if counter == 5005:
             break
 
 
@@ -353,7 +316,14 @@ def run_experiment(exp_config, classifier_config, al_config, ids_config):
 
 def main():
     logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
-    exp_config, classifier_config, al_config, ids_config = load_configurations()
+
+    # config_file_path = sys.argv[1]
+    config_file_path = "default_config.txt"
+    exp_config, classifier_config, al_config, ids_config = load_configurations(config_file_path)
+
+    create_result_dir(exp_config['results_dir'])
+    shutil.copy(config_file_path, exp_config['results_dir'])
+
     run_experiment(exp_config, classifier_config, al_config, ids_config)
 
 

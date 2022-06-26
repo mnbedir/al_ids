@@ -1,6 +1,7 @@
 import shutil
 
-from sklearn.metrics import classification_report, accuracy_score, precision_score, f1_score
+from sklearn.metrics import classification_report, accuracy_score, precision_score, f1_score, balanced_accuracy_score, \
+    recall_score
 import utility
 
 import sys, os, time, logging, csv, glob
@@ -57,25 +58,55 @@ def load_datasets(data_dir):
     return (X_train, y_train), (X_test, y_test)
 
 
-def evaluate_intrusion_detector(classifier, X_test, y_test, label_encoder):
+def evaluate_classifier(intrusion_detector, X_test, y_test):
+    classifier = intrusion_detector.get_attack_classifier()
+    label_encoder = intrusion_detector.get_label_encoder()
+
     y_test_pred_enc = classifier.predict_classes(X_test)
     y_test_pred = label_encoder.inverse_transform(y_test_pred_enc.flatten())
 
     accuracy = accuracy_score(y_test, y_test_pred)
+    accuracy_balanced = balanced_accuracy_score(y_test, y_test_pred)
+
     f1_weighted = f1_score(y_test, y_test_pred, average='weighted')
+    f1_macro = f1_score(y_test, y_test_pred, average='macro')
+
+    recall_weighted = recall_score(y_test, y_test_pred, average='weighted')
+    recall_macro = recall_score(y_test, y_test_pred, average='macro')
+
+    precision_weighted = precision_score(y_test, y_test_pred, average='weighted')
+    precision_macro = precision_score(y_test, y_test_pred, average='macro')
+
     report = classification_report(y_test, y_test_pred, output_dict=True, zero_division=0)
     report.pop('accuracy')
     report.pop('macro avg')
     report.pop('weighted avg')
 
-    general_info = { 'accuracy': accuracy, 'f1_score': f1_weighted}
-    detailed_info = {}
+    global train_counter
+    name = "train-" + str(train_counter)
+    general_info = {'name': name,
+
+                    'accuracy': accuracy,
+                    'accuracy_balanced': accuracy_balanced,
+
+                    'f1_score_weighted': f1_weighted,
+                    'f1_score_macro': f1_macro,
+
+                    'precision_weighted': precision_weighted,
+                    'precision_macro': precision_macro,
+
+                    'recall_weighted': recall_weighted,
+                    'recall_macro': recall_macro
+                    }
+
+    detailed_info = {'name': name}
 
     for class_name in report:
         class_report = report[class_name]
         detailed_info[class_name] = class_report['f1-score']
 
     evaluation_info = (general_info, detailed_info)
+    train_counter += 1
     return evaluation_info
 
 
@@ -98,7 +129,7 @@ def run_experiment(exp_config, classifier_config):
     classifier = AttackClassifier(classifier_config)
     classifier.fit(X_train, y_train_enc)
 
-    evaluation_info = evaluate_intrusion_detector(classifier, X_test, y_test, label_encoder)
+    evaluation_info = evaluate_classifier(classifier, X_test, y_test, label_encoder)
     write_report(exp_config['results_dir'], evaluation_info)
 
 

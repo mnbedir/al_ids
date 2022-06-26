@@ -1,4 +1,3 @@
-
 from sklearn.metrics import classification_report, accuracy_score, balanced_accuracy_score, \
     recall_score, precision_score, f1_score
 
@@ -11,7 +10,7 @@ import matplotlib.pyplot as plt
 
 from active_learners.active_learner import ActiveLearner
 from attack_classifier import AttackClassifier
-from intrusion_detector import IntrusionDetector
+from intrusion_detector_fast import IntrusionDetector
 
 hdf_key = 'my_key'
 
@@ -192,7 +191,7 @@ def report_info(data_info, evaluation_info):
     general_eval_info_df = pd.DataFrame(general_info, index=[0])
     detailed_eval_info_df = pd.DataFrame(detailed_info, index=[0])
 
-    logging.info("Evaluation on test data: \n"+str(general_eval_info_df))
+    logging.info("Evaluation on test data: \n" + str(general_eval_info_df))
 
     # table 1: Which classes confidence is low?
     input_and_pool_data_table = pd.concat([input_and_pool_data_table, input_data_info_df], ignore_index=True)
@@ -252,7 +251,7 @@ def plot_evaluation_graph(result_dir):
     plt.xticks(rotation=90)
     plt.title("Evaluation Results")
     plt.legend()
-    plt.savefig(result_dir+'/evaluation_graph_all.png')
+    plt.savefig(result_dir + '/evaluation_graph_all.png')
 
     plt.figure(figsize=(5, 2.7), layout='constrained')
     plt.plot(indices, general_eval_info_table['accuracy'], label='accuracy')
@@ -261,7 +260,7 @@ def plot_evaluation_graph(result_dir):
     plt.xticks(rotation=90)
     plt.title("Evaluation Results")
     plt.legend()
-    plt.savefig(result_dir+'/evaluation_graph_weighted.png')
+    plt.savefig(result_dir + '/evaluation_graph_weighted.png')
 
     plt.figure(figsize=(5, 2.7), layout='constrained')
     plt.plot(indices, general_eval_info_table['accuracy_balanced'], label='accuracy_balanced')
@@ -270,29 +269,46 @@ def plot_evaluation_graph(result_dir):
     plt.xticks(rotation=90)
     plt.title("Evaluation Results")
     plt.legend()
-    plt.savefig(result_dir+'/evaluation_graph_unweighted.png')
+    plt.savefig(result_dir + '/evaluation_graph_unweighted.png')
 
 
 def run_intrusion_detector(X_train, y_train, X_test, y_test, intrusion_detector):
-    counter = 0
     initial_train_data_info = intrusion_detector.extract_train_data_info()
     initial_evaluation_info = evaluate_intrusion_detector(intrusion_detector, X_test, y_test)
     report_initial_info(initial_train_data_info, initial_evaluation_info)
 
+    data_chunk_size = 100
+    current_data_count = 0
+    remaining_data_count = X_train.shape[0]
+    input_data = np.array(np.empty((0, 78)))
+    data_ids = np.array([])
+
+    logging.info("start_data_count: " + str(remaining_data_count))
     t0 = time.time()
+
     for index, current_data in X_train.iterrows():
-        predicted_label, class_prob, data_info = intrusion_detector.predict(current_data.values.reshape(1, 78), index)
-        # print(class_prob)
-        counter += 1
+        new_data = current_data.values.reshape(1, 78)
+        input_data = np.append(input_data, new_data, axis=0)
+        data_ids = np.append(data_ids, [index])
+
+        current_data_count += 1
+        remaining_data_count -= 1
+
+        if current_data_count < data_chunk_size and remaining_data_count > 0:
+            continue
+
+        predicted_label, class_prob, data_info = intrusion_detector.predict(input_data, data_ids)
+
+        current_data_count = 0
+        input_data = np.array(np.empty((0, 78)))
+        data_ids = np.array([])
 
         if data_info is not None:
             evaluation_info = evaluate_intrusion_detector(intrusion_detector, X_test, y_test)
             report_info(data_info, evaluation_info)
 
-        if counter == 5005:
-            break
-
     exec_time = time.time() - t0
+    logging.info("remaining_data_count: "+str(remaining_data_count))
     logging.info("Experiment eval time: "+str(exec_time))
 
 
@@ -337,8 +353,9 @@ def run_experiment(exp_config, classifier_config, al_config, ids_config):
     # extract_and_save_data_info(exp_config['results_dir'], datasets_orig)
 
     # prepare dataset
-    initial_datasets_orig, remaining_datasets_orig = split_initial_data(datasets_orig, exp_config['initial_split_ratio'])
-    X_rem_train, y_rem_train = prepare_attack_dataset(remaining_datasets_orig)
+    initial_datasets_orig, remaining_datasets_orig = split_initial_data(datasets_orig,
+                                                                        exp_config['initial_split_ratio'])
+    X_rem_train, y_rem_train = remaining_datasets_orig
     X_pre_train, y_pre_train = initial_datasets_orig
     y_pre_train_enc, label_encoder = utility.encode_data(y_pre_train)
 
@@ -348,7 +365,8 @@ def run_experiment(exp_config, classifier_config, al_config, ids_config):
 
     # create active learner
     labels = y_rem_train
-    active_learner = ActiveLearner(al_config['query_strategy'], al_config['selection_strategy'], al_config['selection_param'], labels)
+    active_learner = ActiveLearner(al_config['query_strategy'], al_config['selection_strategy'],
+                                   al_config['selection_param'], labels)
 
     # create intrusion detector
     initial_train_data = X_pre_train, y_pre_train, label_encoder

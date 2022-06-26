@@ -13,11 +13,12 @@ class AttackClassifier:
 
     def __init__(self, exp_params):
         self.input_nodes = 78
-        self.output_nodes = exp_params['output_nodes']
+
         self.layer_nodes = [64]
         self.activations = ['relu']
         self.dropouts = [0.2]
 
+        self.output_nodes = exp_params['output_nodes']
         self.batch_size = exp_params['batch_size']
         self.epochs = exp_params['epochs']
 

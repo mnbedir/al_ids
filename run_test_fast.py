@@ -383,8 +383,7 @@ def run_experiment(exp_config, classifier_config, al_config, ids_config):
 def main():
     logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
 
-    # config_file_path = sys.argv[1]
-    config_file_path = "default_config.txt"
+    config_file_path = sys.argv[1]
     exp_config, classifier_config, al_config, ids_config = load_configurations(config_file_path)
 
     create_result_dir(exp_config['results_dir'])

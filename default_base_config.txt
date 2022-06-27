@@ -5,6 +5,7 @@
 
     'classifier_config': {'output_nodes': 12,
                           'batch_size': 256,
-                          'epochs': 100
+                          'epochs': 100,
+                          'class_weight': True
                           }
 }

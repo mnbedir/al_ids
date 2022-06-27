@@ -21,7 +21,7 @@ def create_experiments_dir(config_dir_path):
 def write_to_file(config_dir_path, filename, config):
     path = config_dir_path + "/" + filename
     with open(path, 'w') as f:
-        f.write(json.dumps(config))
+        f.write(str(config))
 
 
 def generate_experiments(config, config_name, param_name, val_list):
@@ -62,6 +62,12 @@ def main():
     val_list = [10, 20, 30, 40, 50]
     generate_experiments(config, config_name, param_name, val_list)
 
+    # classifier_config: class_weight experiments
+    config_name = 'classifier_config'
+    param_name = 'class_weight'
+    val_list = [True, False]
+    generate_experiments(config, config_name, param_name, val_list)
+
     # al_config: query_strategy experiments
 
     # al_config: selection_strategy experiments
@@ -69,7 +75,7 @@ def main():
     # al_config: selection_param experiments
     config_name = 'al_config'
     param_name = 'selection_param'
-    val_list = [10, 25, 50, 100]
+    val_list = [10, 25, 50, 75, 100]
     generate_experiments(config, config_name, param_name, val_list)
 
     # ids_config: pool_size_th experiments

@@ -6,7 +6,9 @@
 
     'classifier_config': {'output_nodes': 3,
                          'batch_size': 32,
-                         'epochs': 10},
+                         'epochs': 10,
+                         'class_weight': True
+                         },
 
     'al_config': {'query_strategy': 'uncertainty',
                  'selection_strategy': 'max_n',

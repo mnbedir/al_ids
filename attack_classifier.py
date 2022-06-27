@@ -11,29 +11,31 @@ import numpy as np
 
 class AttackClassifier:
 
-    def __init__(self, exp_params):
+    def __init__(self, classifier_config):
         self.input_nodes = 78
 
         self.layer_nodes = [64]
         self.activations = ['relu']
         self.dropouts = [0.2]
 
-        self.output_nodes = exp_params['output_nodes']
-        self.batch_size = exp_params['batch_size']
-        self.epochs = exp_params['epochs']
+        self.output_nodes = classifier_config['output_nodes']
+        self.batch_size = classifier_config['batch_size']
+        self.epochs = classifier_config['epochs']
+        self.class_weight = classifier_config['class_weight']
 
         self.ann = None
         self.create_ann()
 
     def reinit(self, new_output_node_count):
         self.output_nodes = new_output_node_count
-        # self.create_ann()
-
         self.ann.pop()
         self.ann.add(Dense(self.output_nodes, activation='softmax',
                            kernel_initializer='glorot_uniform', bias_initializer='zeros'))
 
         self.ann.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+        logger = logging.getLogger(__name__)
+        self.ann.summary(print_fn=logger.info)
 
     def create_ann(self):
         self.ann = Sequential()
@@ -62,11 +64,13 @@ class AttackClassifier:
     def fit(self, X_train, y_train):
         # --------------------------------
         # Class weights to according to imbalance
-        logging.info("Computing class weights to according to imbalance")
-        y_ints = [y.argmax() for y in y_train]
-        class_weights = class_weight.compute_class_weight(class_weight='balanced', classes=np.unique(y_ints), y=y_ints)
-        d_class_weights = dict(enumerate(class_weights))
-        logging.info("Class weights below.\n{}".format(class_weights))
+        d_class_weights = None
+        if self.class_weight:
+            logging.info("Computing class weights to according to imbalance")
+            y_ints = [y.argmax() for y in y_train]
+            class_weights = class_weight.compute_class_weight(class_weight='balanced', classes=np.unique(y_ints), y=y_ints)
+            d_class_weights = dict(enumerate(class_weights))
+            logging.info("Class weights below.\n{}".format(class_weights))
         # --------------------------------
         # Fit
         history = self.ann.fit(X_train, y_train, epochs=self.epochs, batch_size=self.batch_size,

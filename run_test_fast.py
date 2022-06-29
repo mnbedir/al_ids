@@ -30,6 +30,7 @@ def load_configurations(config_file_path):
             txt_content += line
 
     config = eval(txt_content)
+    logging.info("Configurations are loaded from "+config_file_path)
     return config['exp_config'], config['classifier_config'], config['al_config'], config['ids_config']
 
 

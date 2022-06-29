@@ -28,6 +28,10 @@ class ActiveLearner:
             scores = expected_error_reduction_sampling(classifier, unlabeled_data_pool, train_data_x, train_data_y)
         elif self.query_strategy == 'expected_model_change':
             scores = expected_model_change_sampling(classifier, unlabeled_data_pool, train_data_x, train_data_y)
+        elif self.query_strategy == 'margin':
+            scores = uncertainty_margin_sampling(classifier, unlabeled_data_pool)
+        elif self.query_strategy == 'entropy':
+            scores = uncertainty_entropy_sampling(classifier, unlabeled_data_pool)
         else:
             scores = uncertainty_sampling(classifier, unlabeled_data_pool)
         return scores

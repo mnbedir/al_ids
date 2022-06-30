@@ -27,7 +27,7 @@ done
 
 hostInfo=$(hostname)
 tar -cjvf results_$dt.tar.gz results 
-mv results_$dt.tar.gz experiments/
+mv results_$dt.tar.gz experiments1/
 git pull
 git add experiments1/results_$dt.tar.gz
 git commit -m "Added experiment $scriptFile $input -- $dt from $hostInfo"

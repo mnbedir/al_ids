@@ -11,6 +11,6 @@ fi
 
 for folder_path in $base_folder/*
 do
-	sbatch submit_test_args.sh $folder_path
+	sbatch submit_test_arg.sh $folder_path
 done
 

@@ -5,19 +5,19 @@
                   },
 
     'classifier_config': {'output_nodes': 3,
-                         'batch_size': 32,
+                         'batch_size': 256,
                          'epochs': 10,
                          'class_weight': True
                          },
 
     'al_config': {'query_strategy': 'uncertainty',
                  'selection_strategy': 'max_n',
-                 'selection_param': 50
+                 'selection_param': 100
                  },
 
     'ids_config': {'pool_size_th': 500,
-                  'classifier_confidence_th': 0.9,
-                  'new_class_min_count_th': 3,
+                  'classifier_confidence_th': 0.95,
+                  'new_class_min_count_th': 1,
                   'retrain_only_new_data': False
                   }
 }

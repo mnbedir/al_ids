@@ -1,0 +1,1 @@
+{'exp_config': {'dataset_dir': './Datasets/small_datasets/ids2017', 'results_dir': 'results/exp_base_batch_size/exp_base_batch_size_512'}, 'classifier_config': {'output_nodes': 12, 'batch_size': 512, 'epochs': 100, 'class_weight': True}}

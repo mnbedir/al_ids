@@ -18,4 +18,4 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/
 
 cd /truba/home/$USER/agent3/al_ids
 config_folder_path=$1
-./run_experiments_2.sh run_base_test.py $config_folder_path > run_experiments.log 2>&1
+./run_experiments_3.sh run_base_test.py $config_folder_path > run_experiments.log 2>&1

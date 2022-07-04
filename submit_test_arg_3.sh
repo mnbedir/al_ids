@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -p akya-cuda        	# Kuyruk adi: Uzerinde GPU olan kuyruk olmasina dikkat edin.
 #SBATCH -A mtuzun         	# Kullanici adi
-#SBATCH -J agent2_task     # Gonderilen isin ismi
+#SBATCH -J agent3_task     # Gonderilen isin ismi
 #SBATCH --dependency singleton
-#SBATCH -o experiment2.out    	# Ciktinin yazilacagi dosya adi
+#SBATCH -o experiment3.out    	# Ciktinin yazilacagi dosya adi
 #SBATCH --gres=gpu:1        	# Her bir sunucuda kac GPU istiyorsunuz? Kumeleri kontrol edin.
 #SBATCH -N 1                	# Gorev kac node'da calisacak?
 #SBATCH -n 1                	# Ayni gorevden kac adet calistirilacak?

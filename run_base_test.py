@@ -21,6 +21,7 @@ def load_configurations(config_file_path):
             txt_content += line
 
     config = eval(txt_content)
+    logging.info("Configurations are loaded from " + config_file_path)
     return config['exp_config'], config['classifier_config']
 
 
@@ -136,8 +137,8 @@ def run_experiment(exp_config, classifier_config):
 def main():
     logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
 
-    # config_file_path = sys.argv[1]
-    config_file_path = "default_base_config.txt"
+    config_file_path = sys.argv[1]
+    # config_file_path = "default_base_config.txt"
     exp_config, classifier_config = load_configurations(config_file_path)
 
     create_result_dir(exp_config['results_dir'])

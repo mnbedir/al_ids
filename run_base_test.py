@@ -59,10 +59,7 @@ def load_datasets(data_dir):
     return (X_train, y_train), (X_test, y_test)
 
 
-def evaluate_classifier(intrusion_detector, X_test, y_test):
-    classifier = intrusion_detector.get_attack_classifier()
-    label_encoder = intrusion_detector.get_label_encoder()
-
+def evaluate_classifier(classifier, X_test, y_test, label_encoder):
     y_test_pred_enc = classifier.predict_classes(X_test)
     y_test_pred = label_encoder.inverse_transform(y_test_pred_enc.flatten())
 

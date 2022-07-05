@@ -6,9 +6,6 @@ import utility
 
 import sys, os, time, logging, csv, glob
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib
 from attack_classifier import AttackClassifier
 
 hdf_key = 'my_key'
@@ -66,22 +63,21 @@ def evaluate_classifier(classifier, X_test, y_test, label_encoder):
     accuracy = accuracy_score(y_test, y_test_pred)
     accuracy_balanced = balanced_accuracy_score(y_test, y_test_pred)
 
-    f1_weighted = f1_score(y_test, y_test_pred, average='weighted')
-    f1_macro = f1_score(y_test, y_test_pred, average='macro')
+    f1_weighted = f1_score(y_test, y_test_pred, average='weighted', zero_division=0)
+    f1_macro = f1_score(y_test, y_test_pred, average='macro', zero_division=0)
 
-    recall_weighted = recall_score(y_test, y_test_pred, average='weighted')
-    recall_macro = recall_score(y_test, y_test_pred, average='macro')
+    recall_weighted = recall_score(y_test, y_test_pred, average='weighted', zero_division=0)
+    recall_macro = recall_score(y_test, y_test_pred, average='macro', zero_division=0)
 
-    precision_weighted = precision_score(y_test, y_test_pred, average='weighted')
-    precision_macro = precision_score(y_test, y_test_pred, average='macro')
+    precision_weighted = precision_score(y_test, y_test_pred, average='weighted', zero_division=0)
+    precision_macro = precision_score(y_test, y_test_pred, average='macro', zero_division=0)
 
     report = classification_report(y_test, y_test_pred, output_dict=True, zero_division=0)
     report.pop('accuracy')
     report.pop('macro avg')
     report.pop('weighted avg')
 
-    global train_counter
-    name = "train-" + str(train_counter)
+    name = "train-0"
     general_info = {'name': name,
 
                     'accuracy': accuracy,
@@ -104,7 +100,6 @@ def evaluate_classifier(classifier, X_test, y_test, label_encoder):
         detailed_info[class_name] = class_report['f1-score']
 
     evaluation_info = (general_info, detailed_info)
-    train_counter += 1
     return evaluation_info
 
 

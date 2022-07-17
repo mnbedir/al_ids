@@ -33,7 +33,7 @@ def generate_experiments(config, config_name, param_name, val_list):
     for val in val_list:
         exp_name = exp_group_name + "_" + str(val)
 
-        config['exp_config']['results_dir'] = "results/" + exp_group_name + "/" + exp_name
+        config['exp_config']['results_dir'] = "results_random_balanced/" + exp_group_name + "/" + exp_name
         config[config_name][param_name] = val
 
         filename = exp_name + "_config.txt"

@@ -1,7 +1,7 @@
 import shutil
 
 from sklearn.metrics import classification_report, accuracy_score, precision_score, f1_score, balanced_accuracy_score, \
-    recall_score
+    recall_score, confusion_matrix
 import utility
 
 import sys, os, time, logging, csv, glob
@@ -72,6 +72,10 @@ def evaluate_classifier(classifier, X_test, y_test, label_encoder):
     precision_weighted = precision_score(y_test, y_test_pred, average='weighted', zero_division=0)
     precision_macro = precision_score(y_test, y_test_pred, average='macro', zero_division=0)
 
+    conf_mat = confusion_matrix(y_test, y_test_pred)
+    print("confusion matrix: ")
+    print(conf_mat)
+
     report = classification_report(y_test, y_test_pred, output_dict=True, zero_division=0)
     report.pop('accuracy')
     report.pop('macro avg')
@@ -129,8 +133,8 @@ def run_experiment(exp_config, classifier_config):
 def main():
     logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
 
-    config_file_path = sys.argv[1]
-    # config_file_path = "default_base_config.txt"
+    # config_file_path = sys.argv[1]
+    config_file_path = "default_base_config.txt"
     exp_config, classifier_config = load_configurations(config_file_path)
 
     create_result_dir(exp_config['results_dir'])
